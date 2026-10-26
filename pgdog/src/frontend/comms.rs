@@ -26,6 +26,7 @@ pub(crate) fn comms() -> Comms {
 #[derive(Debug)]
 struct Global {
     shutdown: CancellationToken,
+    terminate: CancellationToken,
     // This uses the FNV hasher, which is safe,
     // because FrontendPid is monotonically minted by us,
     // not derived from untrusted client input.
@@ -51,6 +52,7 @@ impl Comms {
         Self {
             global: Arc::new(Global {
                 shutdown: CancellationToken::new(),
+                terminate: CancellationToken::new(),
                 clients: Arc::new(DashMap::default()),
                 tracker: TaskTracker::new(),
             }),
@@ -140,6 +142,16 @@ impl Comms {
     /// pgDog is shutting down now.
     pub(crate) fn offline(&self) -> bool {
         self.global.shutdown.is_cancelled()
+    }
+
+    /// Shutdown timeout expired; remaining clients must leave.
+    pub(crate) fn terminate(&self) {
+        self.global.terminate.cancel();
+    }
+
+    /// Get the shutdown timeout signal.
+    pub(crate) fn terminating(&self) -> CancellationToken {
+        self.global.terminate.clone()
     }
 }
 

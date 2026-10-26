@@ -140,6 +140,11 @@ shutdown_timeout = 60_000
 #
 # Default: disabled
 shutdown_termination_timeout = 60_000
+# Keep idle clients connected during shutdown until they disconnect
+# or shutdown_timeout expires, instead of disconnecting them immediately.
+#
+# Default: false
+shutdown_keep_idle_clients = false
 # OpenMetrics server port.
 #
 # If set, enables Prometheus-style metrics exporter.

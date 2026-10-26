@@ -542,6 +542,8 @@ impl Client {
     /// Run the client.
     async fn run(&mut self) -> Result<(), Error> {
         let shutdown = self.comms.shutting_down();
+        let terminate = self.comms.terminating();
+        let keep_idle_clients = config().config.general.shutdown_keep_idle_clients;
         let mut query_engine = QueryEngine::from_client(self)?;
 
         loop {
@@ -551,7 +553,7 @@ impl Client {
             let query_engine_done = query_engine.can_disconnect();
 
             // If query engine is idle and we requested shutdown, we're done.
-            if query_engine_done && offline {
+            if query_engine_done && offline && !keep_idle_clients {
                 // Send shutdown notification to client.
                 self.stream
                     .send_flush(&ErrorResponse::shutting_down())
@@ -566,6 +568,14 @@ impl Client {
             select! {
                 _ = shutdown.cancelled(), if !offline => {
                     continue; // Wake up task.
+                }
+
+                // Shutdown timeout expired.
+                _ = terminate.cancelled(), if offline && keep_idle_clients => {
+                    self.stream
+                        .send_flush(&ErrorResponse::shutting_down())
+                        .await?;
+                    break;
                 }
 
                 // Async messages.

@@ -310,6 +310,13 @@ pub struct General {
     #[serde(default = "General::default_shutdown_termination_timeout")]
     pub shutdown_termination_timeout: Option<u64>,
 
+    /// Keep idle clients connected during shutdown until they disconnect or `shutdown_timeout` expires,
+    /// instead of disconnecting them immediately.
+    ///
+    /// _Default:_ `false`
+    #[serde(default = "General::default_shutdown_keep_idle_clients")]
+    pub shutdown_keep_idle_clients: bool,
+
     /// Broadcast IP address used for multi-instance coordination (e.g., schema cache invalidation across nodes).
     pub broadcast_address: Option<Ipv4Addr>,
 
@@ -952,6 +959,7 @@ impl Default for General {
             tls_client_ca_certificate: Self::tls_client_ca_certificate(),
             shutdown_timeout: Self::default_shutdown_timeout(),
             shutdown_termination_timeout: Self::default_shutdown_termination_timeout(),
+            shutdown_keep_idle_clients: Self::default_shutdown_keep_idle_clients(),
             broadcast_address: Self::broadcast_address(),
             broadcast_port: Self::broadcast_port(),
             query_log: Self::query_log(),
@@ -1289,6 +1297,10 @@ impl General {
 
     fn default_shutdown_timeout() -> u64 {
         Self::env_or_default("PGDOG_SHUTDOWN_TIMEOUT", 60_000)
+    }
+
+    fn default_shutdown_keep_idle_clients() -> bool {
+        Self::env_or_default("PGDOG_SHUTDOWN_KEEP_IDLE_CLIENTS", false)
     }
 
     fn default_system_catalogs() -> SystemCatalogsBehavior {

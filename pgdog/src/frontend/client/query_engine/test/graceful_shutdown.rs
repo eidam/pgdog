@@ -3,6 +3,7 @@ use std::time::Duration;
 use tokio::time::timeout;
 
 use crate::{
+    config::{config, set},
     expect_message,
     frontend::comms::comms,
     net::{ErrorResponse, Parameters},
@@ -58,4 +59,32 @@ async fn test_graceful_shutdown_waits_for_transaction() {
     timeout(Duration::from_secs(2), client.join())
         .await
         .expect("client loop did not exit after shutdown");
+}
+
+/// Test that `shutdown_keep_idle_clients` serves an idle client until
+/// the shutdown timeout terminates it.
+#[tokio::test]
+async fn test_graceful_shutdown_keeps_idle_clients() {
+    crate::config::load_test();
+    let mut cfg = (*config()).clone();
+    cfg.config.general.shutdown_keep_idle_clients = true;
+    set(cfg).unwrap();
+
+    let mut client = SpawnedClient::new(Parameters::default()).await;
+
+    comms().shutdown();
+
+    // Idle client keeps working.
+    client.send(Query::new("SELECT 1")).await;
+    client.read_until('Z').await;
+
+    comms().terminate();
+
+    let err = expect_message!(client.read().await, ErrorResponse);
+    assert_eq!(err.code, "57P01");
+    assert_eq!(err.message, "PgDog is shutting down");
+
+    timeout(Duration::from_secs(2), client.join())
+        .await
+        .expect("client loop did not exit after terminate");
 }

@@ -184,6 +184,8 @@ impl Listener {
                     );
                 }
             }
+
+            comms.terminate();
         }
 
         self.shutdown.cancel();
