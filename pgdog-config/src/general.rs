@@ -184,6 +184,7 @@ pub struct General {
     /// Enable load balancer HTTP health checks with the HTTP server running on this port.
     ///
     /// <https://docs.pgdog.dev/configuration/pgdog.toml/general/#healthcheck_port>
+    #[serde(default = "General::healthcheck_port")]
     pub healthcheck_port: Option<u16>,
 
     /// Should newly added servers require a successful healthcheck before serving traffic?
@@ -249,11 +250,13 @@ pub struct General {
     /// Path to the TLS certificate PgDog will use to setup TLS connections with clients.
     ///
     /// <https://docs.pgdog.dev/configuration/pgdog.toml/general/#tls_certificate>
+    #[serde(default = "General::tls_certificate")]
     pub tls_certificate: Option<PathBuf>,
 
     /// Path to the TLS private key PgDog will use to setup TLS connections with clients.
     ///
     /// <https://docs.pgdog.dev/configuration/pgdog.toml/general/#tls_private_key>
+    #[serde(default = "General::tls_private_key")]
     pub tls_private_key: Option<PathBuf>,
 
     /// Reject clients that connect without TLS.
@@ -275,23 +278,27 @@ pub struct General {
     /// Path to a certificate bundle used to validate the server certificate on TLS connection creation.
     ///
     /// <https://docs.pgdog.dev/configuration/pgdog.toml/general/#tls_server_ca_certificate>
+    #[serde(default = "General::tls_server_ca_certificate")]
     pub tls_server_ca_certificate: Option<PathBuf>,
 
     /// Path to the TLS certificate PgDog presents to upstream Postgres servers,
     /// enabling mutual TLS (client authentication) on the server connection.
     ///
     /// https://docs.pgdog.dev/configuration/pgdog.toml/general/#tls_server_certificate
+    #[serde(default = "General::tls_server_certificate")]
     pub tls_server_certificate: Option<PathBuf>,
 
     /// Path to the TLS private key for the certificate configured in
     /// `tls_server_certificate`.
     ///
     /// https://docs.pgdog.dev/configuration/pgdog.toml/general/#tls_server_private_key
+    #[serde(default = "General::tls_server_private_key")]
     pub tls_server_private_key: Option<PathBuf>,
 
     /// Path to a certificate bundle used to validate the client certificate on TLS connection creation.
     ///
     /// <https://docs.pgdog.dev/configuration/pgdog.toml/general/#tls_client_ca_certificate>
+    #[serde(default = "General::tls_client_ca_certificate")]
     pub tls_client_ca_certificate: Option<PathBuf>,
 
     /// How long to wait for active clients to finish transactions when shutting down.
@@ -311,6 +318,7 @@ pub struct General {
     pub shutdown_termination_timeout: Option<u64>,
 
     /// Broadcast IP address used for multi-instance coordination (e.g., schema cache invalidation across nodes).
+    #[serde(default = "General::broadcast_address")]
     pub broadcast_address: Option<Ipv4Addr>,
 
     /// UDP port used for multi-instance broadcast coordination.
@@ -372,11 +380,13 @@ pub struct General {
     /// The port used for the OpenMetrics HTTP endpoint.
     ///
     /// <https://docs.pgdog.dev/configuration/pgdog.toml/general/#openmetrics_port>
+    #[serde(default = "General::openmetrics_port")]
     pub openmetrics_port: Option<u16>,
 
     /// Prefix added to all metric names exposed via the OpenMetrics endpoint.
     ///
     /// <https://docs.pgdog.dev/configuration/pgdog.toml/general/#openmetrics_namespace>
+    #[serde(default = "General::openmetrics_namespace")]
     pub openmetrics_namespace: Option<String>,
 
     /// Enables support for prepared statements.
@@ -1785,6 +1795,15 @@ mod tests {
             General::query_size_limit_action(),
             QuerySizeLimitAction::Warn
         );
+    }
+
+    #[test]
+    fn test_env_fills_keys_missing_from_toml() {
+        let _guard = set_env_var("PGDOG_HEALTHCHECK_PORT", "8081");
+        let _guard = set_env_var("PGDOG_OPENMETRICS_PORT", "9090");
+        let general: General = toml::from_str("port = 6432").unwrap();
+        assert_eq!(general.healthcheck_port, Some(8081));
+        assert_eq!(general.openmetrics_port, Some(9090));
     }
 
     #[test]
