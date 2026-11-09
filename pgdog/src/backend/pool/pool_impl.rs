@@ -49,6 +49,7 @@ pub(crate) struct InnerSync {
     pub(super) params: OnceCell<Arc<Parameters>>,
     pub(super) lsn_stats: RwLock<LsnStats>,
     pub(super) lsn_role_change: Notify,
+    pub(super) lsn_updated: Notify,
     pub(super) oids: Arc<Oids>,
 }
 
@@ -80,6 +81,7 @@ impl Pool {
                 params: OnceCell::new(),
                 lsn_stats: RwLock::new(LsnStats::default()),
                 lsn_role_change: Notify::new(),
+                lsn_updated: Notify::new(),
                 oids,
             }),
         }

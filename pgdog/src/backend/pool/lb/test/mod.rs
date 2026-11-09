@@ -510,6 +510,102 @@ async fn test_include_primary_if_replica_lag() {
     replicas.shutdown();
 }
 
+/// Primary and two replicas behind LSN 200, with `lsn_wait_timeout` set on every pool.
+fn setup_lsn_wait(rw_split: ReadWriteSplit, wait: Duration) -> (LoadBalancer, Request) {
+    let pool_config = |host| {
+        let mut config = create_test_pool_config(host, 5432);
+        config.config.lsn_wait_timeout = wait;
+        config
+    };
+    let primary = Pool::new(&pool_config("127.0.0.1"));
+    let replicas = LoadBalancer::new(
+        &Some(primary),
+        &[pool_config("127.0.0.1"), pool_config("localhost")],
+        LoadBalancingStrategy::RoundRobin,
+        rw_split,
+        Default::default(),
+    );
+    replicas.launch();
+    set_lsn_stats(&replicas.targets[0], true, 100);
+    set_lsn_stats(&replicas.targets[1], true, 100);
+
+    let mut route = Route::read(ShardWithPriority::default());
+    route.lsn = Some(200);
+    (replicas, Request::new(Default::default(), &route, false))
+}
+
+#[tokio::test]
+async fn test_lsn_wait_replica_catches_up() {
+    let (replicas, request) =
+        setup_lsn_wait(ReadWriteSplit::ExcludePrimary, Duration::from_secs(5));
+
+    // The LSN monitor refreshes one replica while the read is waiting.
+    let target = replicas.targets[1].clone();
+    let monitor = tokio::spawn(async move {
+        sleep(Duration::from_millis(50)).await;
+        set_lsn_stats(&target, true, 200);
+        target.pool.inner().lsn_updated.notify_waiters();
+    });
+
+    let start = Instant::now();
+    let conn = replicas.get(&request).await.expect("caught-up replica");
+    assert_eq!(conn.pool.id(), replicas.targets[1].pool.id());
+    assert!(start.elapsed() >= Duration::from_millis(50));
+    assert!(start.elapsed() < Duration::from_secs(5));
+
+    monitor.await.unwrap();
+    replicas.shutdown();
+}
+
+#[tokio::test]
+async fn test_lsn_wait_times_out() {
+    let wait = Duration::from_millis(100);
+
+    // After the wait, each mode does what it does without one.
+    let (replicas, request) = setup_lsn_wait(ReadWriteSplit::IncludePrimaryIfReplicaLag, wait);
+    let start = Instant::now();
+    let conn = replicas.get(&request).await.expect("primary fallback");
+    assert_eq!(conn.pool.id(), replicas.primary().unwrap().id());
+    assert!(start.elapsed() >= wait);
+    drop(conn);
+    replicas.shutdown();
+
+    let (replicas, request) = setup_lsn_wait(ReadWriteSplit::ExcludePrimary, wait);
+    let start = Instant::now();
+    let err = replicas.get(&request).await.expect_err("replica lag");
+    assert!(matches!(err, Error::ReplicaLag(_)));
+    assert!(start.elapsed() >= wait);
+    replicas.shutdown();
+}
+
+#[tokio::test]
+async fn test_lsn_wait_skipped_without_waitable_replica() {
+    let wait = Duration::from_secs(5);
+
+    // Banned replicas won't serve the read however far they replay.
+    let (replicas, request) = setup_lsn_wait(ReadWriteSplit::IncludePrimaryIfReplicaLag, wait);
+    for target in &replicas.targets[..2] {
+        target.ban.ban(Error::ManualBan, Duration::MAX);
+    }
+    let start = Instant::now();
+    let conn = replicas.get(&request).await.expect("primary fallback");
+    assert_eq!(conn.pool.id(), replicas.primary().unwrap().id());
+    assert!(start.elapsed() < wait);
+    drop(conn);
+    replicas.shutdown();
+
+    // Without LSN stats there is nothing to wait for.
+    let (replicas, request) = setup_lsn_wait(ReadWriteSplit::IncludePrimaryIfReplicaLag, wait);
+    set_lsn_stats(&replicas.targets[0], true, 0);
+    set_lsn_stats(&replicas.targets[1], true, 0);
+    let start = Instant::now();
+    let conn = replicas.get(&request).await.expect("primary fallback");
+    assert_eq!(conn.pool.id(), replicas.primary().unwrap().id());
+    assert!(start.elapsed() < wait);
+    drop(conn);
+    replicas.shutdown();
+}
+
 /// Sets the `Request.read_only` (normally derived from `User.read_only`) to true,
 /// then ensures that the primary is not chosen for reads. We have replicas available.
 #[tokio::test]

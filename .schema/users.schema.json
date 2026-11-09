@@ -241,6 +241,15 @@
           "format": "uint64",
           "minimum": 0
         },
+        "lsn_wait_timeout": {
+          "description": "How long this user's `pgdog_lsn` reads wait for a replica, overrides the same setting in [general].",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
         "min_pool_size": {
           "description": "Overrides [`min_pool_size`](https://docs.pgdog.dev/configuration/pgdog.toml/general/#min_pool_size) for this user. Opens at least this many connections on pooler startup and keeps them open despite [`idle_timeout`](https://docs.pgdog.dev/configuration/pgdog.toml/general/#idle_timeout).\n\n<https://docs.pgdog.dev/configuration/users.toml/users/#min_pool_size>",
           "type": [

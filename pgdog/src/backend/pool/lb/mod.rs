@@ -9,6 +9,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use futures::stream::{FuturesUnordered, StreamExt};
 use rand::seq::SliceRandom;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
@@ -419,10 +420,61 @@ impl LoadBalancer {
         self.wait_primary().await?.get(request).await
     }
 
+    /// Wait for a replica to replay `lsn`, for up to `lsn_wait_timeout`.
+    ///
+    /// Returns once an unbanned replica has caught up, none can (no LSN stats
+    /// to compare) or the timeout expires; the caller then filters as usual.
+    async fn wait_lsn(&self, lsn: u64) {
+        let replicas = || {
+            self.targets.iter().filter(|target| {
+                target.role() == Role::Replica
+                    && !target.pool.config().resharding_only
+                    && !target.ban.banned()
+            })
+        };
+
+        let timeout = replicas()
+            .map(|target| target.pool.config().lsn_wait_timeout)
+            .max()
+            .unwrap_or_default();
+
+        if timeout.is_zero() {
+            return;
+        }
+
+        let caught_up = async {
+            loop {
+                // Subscribe before reading the stats, so an update in between isn't missed.
+                let mut updates = replicas()
+                    .map(|target| target.pool.inner().lsn_updated.notified())
+                    .collect::<FuturesUnordered<_>>();
+
+                let mut tracked = false;
+                for target in replicas() {
+                    let replayed = target.pool.lsn_stats().lsn.lsn;
+                    if replayed >= lsn {
+                        return;
+                    }
+                    tracked |= replayed > 0;
+                }
+
+                if !tracked || updates.next().await.is_none() {
+                    return;
+                }
+            }
+        };
+
+        let _ = safe_timeout(timeout, caught_up).await;
+    }
+
     /// Check out a read connection using the configured load balancing strategy.
     async fn get_internal(&self, request: &Request) -> Result<Guard, Error> {
         use LoadBalancingStrategy::*;
         use smallvec::SmallVec;
+
+        if let Some(lsn) = request.lsn {
+            self.wait_lsn(lsn).await;
+        }
 
         let mut candidates: SmallVec<[&Target; 32]> = self
             .targets

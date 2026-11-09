@@ -745,6 +745,14 @@ pub struct General {
     #[serde(default = "General::lsn_check_delay")]
     pub lsn_check_delay: u64,
 
+    /// How long a read with a `pgdog_lsn` comment waits for a replica to replay that LSN. `0` disables the wait.
+    ///
+    /// _Default:_ `0`
+    ///
+    /// <https://docs.pgdog.dev/configuration/pgdog.toml/general/#lsn_wait_timeout>
+    #[serde(default = "General::lsn_wait_timeout")]
+    pub lsn_wait_timeout: u64,
+
     /// Minimum ID for unique ID generator.
     #[serde(default)]
     pub unique_id_min: u64,
@@ -1004,6 +1012,7 @@ impl Default for General {
             lsn_check_interval: Self::lsn_check_interval(),
             lsn_check_timeout: Self::lsn_check_timeout(),
             lsn_check_delay: Self::lsn_check_delay(),
+            lsn_wait_timeout: Self::lsn_wait_timeout(),
             unique_id_min: u64::default(),
             system_catalogs: Self::default_system_catalogs(),
             omnisharded_sticky: bool::default(),
@@ -1343,6 +1352,10 @@ impl General {
             "PGDOG_LSN_CHECK_DELAY",
             crate::MAX_DURATION.as_millis() as u64,
         )
+    }
+
+    fn lsn_wait_timeout() -> u64 {
+        Self::env_or_default("PGDOG_LSN_WAIT_TIMEOUT", 0)
     }
 
     pub fn lsn_checks_enabled(&self) -> bool {

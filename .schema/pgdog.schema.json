@@ -74,6 +74,7 @@
         "lsn_check_delay": 9223372036854775807,
         "lsn_check_interval": 5000,
         "lsn_check_timeout": 5000,
+        "lsn_wait_timeout": 0,
         "min_pool_size": 1,
         "mirror_exposure": 1.0,
         "mirror_queue": 128,
@@ -1025,6 +1026,13 @@
           "type": "integer",
           "format": "uint64",
           "default": 5000,
+          "minimum": 0
+        },
+        "lsn_wait_timeout": {
+          "description": "How long a read with a `pgdog_lsn` comment waits for a replica to replay that LSN. `0` disables the wait.\n\n_Default:_ `0`\n\n<https://docs.pgdog.dev/configuration/pgdog.toml/general/#lsn_wait_timeout>",
+          "type": "integer",
+          "format": "uint64",
+          "default": 0,
           "minimum": 0
         },
         "min_pool_size": {

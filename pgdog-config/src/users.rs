@@ -424,6 +424,9 @@ pub struct User {
 
     /// Read-write split algorithm to use for this user.
     pub read_write_split: Option<ReadWriteSplit>,
+
+    /// How long this user's `pgdog_lsn` reads wait for a replica, overrides the same setting in [general].
+    pub lsn_wait_timeout: Option<u64>,
 }
 
 impl User {

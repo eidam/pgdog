@@ -119,6 +119,9 @@ pub struct PoolConfig {
     /// LSN check delay.
     #[serde_as(as = "DurationMilliSeconds")]
     pub lsn_check_delay: Duration,
+    /// LSN wait timeout.
+    #[serde_as(as = "DurationMilliSeconds")]
+    pub lsn_wait_timeout: Duration,
     /// Automatic role detection enabled.
     pub role_detection: bool,
     /// Used for resharding only.
@@ -225,6 +228,9 @@ impl PoolConfig {
             lsn_check_interval: Duration::from_millis(general.lsn_check_interval),
             lsn_check_timeout: Duration::from_millis(general.lsn_check_timeout),
             lsn_check_delay: Duration::from_millis(general.lsn_check_delay),
+            lsn_wait_timeout: Duration::from_millis(
+                user.lsn_wait_timeout.unwrap_or(general.lsn_wait_timeout),
+            ),
             role_detection: database.is_role_auto(),
             resharding_only: database.resharding_only,
             lb_weight: database.lb_weight,
@@ -290,6 +296,7 @@ impl Default for PoolConfig {
             lsn_check_interval: Duration::from_millis(5_000),
             lsn_check_timeout: Duration::from_millis(5_000),
             lsn_check_delay: Duration::from_millis(5_000),
+            lsn_wait_timeout: Duration::ZERO,
             role_detection: false,
             resharding_only: false,
             lb_weight: 255,

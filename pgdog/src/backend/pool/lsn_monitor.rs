@@ -238,6 +238,8 @@ impl LsnMonitor {
                 }
                 (*guard) = stats;
             }
+            // Wake reads waiting for this replica to replay their LSN.
+            self.pool.inner().lsn_updated.notify_waiters();
             trace!("lsn monitor stats updated [{}]", self.pool.addr());
         }
 
