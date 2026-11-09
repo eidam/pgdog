@@ -435,7 +435,6 @@ async fn test_read_write_split_exclude_primary() {
 #[tokio::test]
 async fn test_lsn_filtering() {
     let primary = Pool::new(&create_test_pool_config("127.0.0.1", 5432));
-    let primary_id = primary.id();
     let replicas = LoadBalancer::new(
         &Some(primary),
         &[
@@ -462,11 +461,11 @@ async fn test_lsn_filtering() {
             assert_eq!(conn.pool.id(), replicas.targets[1].pool.id());
         }
 
-        // Fall back to primary when every replica is behind the requested LSN.
+        // Don't fall back to primary when every replica is behind the requested LSN.
         route.lsn = Some(ahead);
         let request = Request::new(Default::default(), &route, false);
-        let conn = replicas.get(&request).await.expect("primary fallback");
-        assert_eq!(conn.pool.id(), primary_id);
+        let err = replicas.get(&request).await.expect_err("replica lag");
+        assert!(matches!(err, Error::ReplicaLag(_)));
     }
 
     replicas.shutdown();

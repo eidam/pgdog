@@ -10,4 +10,4 @@ Use primary for reads:
 
 **Conditional** means at least one remaining replica is banned or exactly one candidate remains (assumed primary). A banned primary does not count.
 
-**Filtered** means no replica remains after the resharding-only and LSN filters. Banned replicas still count, so `ExcludePrimary` returns `AllReplicasDown` when every replica is banned.
+**Filtered** means no replica remains after the resharding-only filter. Banned replicas still count, so `ExcludePrimary` returns `AllReplicasDown` when every replica is banned, and `ReplicaLag` when the LSN filter removes every replica.

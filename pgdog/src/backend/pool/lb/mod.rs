@@ -432,9 +432,26 @@ impl LoadBalancer {
 
         // Remove any replicas that are behind the requested LSN.
         if let Some(lsn) = request.lsn {
+            // Lag of the closest replica, if there are any.
+            let replica_lag = candidates
+                .iter()
+                .filter(|target| target.role() == Role::Replica)
+                .map(|target| target.pool.replica_lag())
+                .min();
+
             candidates.retain(|target| {
                 target.role() == Role::Primary || target.pool.lsn_stats().lsn.lsn >= lsn
             });
+
+            // Replica lag doesn't let `ExcludePrimary` read from the primary.
+            if let Some(replica_lag) = replica_lag
+                && self.rw_split == ReadWriteSplit::ExcludePrimary
+                && !candidates
+                    .iter()
+                    .any(|target| target.role() == Role::Replica)
+            {
+                return Err(Error::ReplicaLag(replica_lag));
+            }
         }
 
         let primary_reads = primary_reads(self.rw_split, request.read_only, &candidates);

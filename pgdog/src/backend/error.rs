@@ -138,6 +138,7 @@ impl Error {
             // These are recoverable errors.
             Error::Pool(PoolError::CheckoutTimeout) => true,
             Error::Pool(PoolError::AllReplicasDown) => true,
+            Error::Pool(PoolError::ReplicaLag(_)) => true,
             _ => false,
         }
     }
